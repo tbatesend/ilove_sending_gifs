@@ -22,11 +22,11 @@ bu menü açılır (normal menü lazımsa **Shift + sağ tık**):
 
 | Medya | Seçenek | Discord'da ne olur |
 |---|---|---|
-| GIF / video | **GIF yap → yükle & linki kopyala** | Linki yapıştır, GIF olarak oynar. |
-| GIF / video | **GIF yap → indir (.gif)** | Dosyayı Discord'a sürükle, GIF olarak oynar. |
-| GIF | **FxTwitter GIF linkini kopyala** | Anında. Animasyonlu WebP linki. |
+| GIF / video | **GIF yap → indir (.gif)** | Dosyayı Discord'a sürükle, GIF olarak oynar. **Denendi, çalışıyor.** |
+| GIF | **FxTwitter GIF linkini kopyala** | Anında. Animasyonlu WebP linki. Discord'da denenmedi. |
 | GIF / video | **MP4 linkini kopyala** | Oynat tuşlu video olarak gösterir. |
 | GIF / video | **MP4 indir** | Dosyayı sürükle, video olarak gider. |
+| GIF / video | **GIF yap → catbox'a yükle & linki kopyala** | **Denendi, Discord'da açılmadı** (aşağıya bak). |
 | Resim | **Resim linkini kopyala / indir** | Orijinal boyut (`?name=orig`). |
 | Hepsi | **FixupX linkini kopyala** | Tweet'in tamamı embed olur. |
 
@@ -49,9 +49,16 @@ Ayarlar script'in en üstündeki `CONFIG` bölümünde (`maxSide`, `fps`,
 
 ## Bilmen gerekenler
 
-- **"Yükle & linki kopyala" dosyayı [catbox.moe](https://catbox.moe)'ya
-  yükler. Dosya herkese açık ve kalıcı olur, silemezsin.** Özel bir şey
-  için "indir"i kullan.
+- **catbox linkleri Discord'da açılmadı.** Denemede 1.6 MB'lık GIF tarayıcıda
+  açılıp oynadı, aynı dosya sürükleyince Discord'da da oynadı. Ama linki
+  Discord'a yapıştırınca Discord'un resim proxy'si
+  `{"message":"Invalid resource ..."}` döndürdü. Yani dosya sağlam, Discord
+  catbox'tan dosyayı çekemiyor. Nedenini bilmiyorum. Seçenek menüde en altta
+  duruyor.
+- "catbox'a yükle" dosyayı [catbox.moe](https://catbox.moe)'ya yükler.
+  **Dosya herkese açık ve kalıcı olur, silemezsin.**
+- İpucu: Chrome ve Firefox'ta indirme panelindeki dosyayı doğrudan Discord
+  penceresine sürükleyebilirsin, klasörü açman gerekmez.
 - Discord'un nitro'suz yükleme sınırı 10 MB. Nitro'n varsa `maxBytes`
   değerini artırabilirsin.
 - Uzun videolardan GIF yapmak mantıklı değil. 15 saniyeden sonrası kesilir,

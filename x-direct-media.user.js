@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         X → Discord: Direct Media & GIF Maker
 // @namespace    https://github.com/tbatesend/ilove_sending_gifs
-// @version      6.0.0
+// @version      6.0.1
 // @description  Right-click media on X (or use the Share menu) to copy direct links, download MP4s, or turn videos/GIFs into real .gif files that Discord animates.
 // @match        https://x.com/*
 // @match        https://twitter.com/*
@@ -676,12 +676,6 @@
 
         if (media.type === 'gif' || media.type === 'video') {
             items.push({
-                label: 'GIF yap → yükle & linki kopyala',
-                hint: 'Discord\'a yapıştır, GIF olarak oynar (catbox.moe, herkese açık)',
-                run: () => makeGif(entry, 'upload')
-            });
-
-            items.push({
                 label: 'GIF yap → indir (.gif)',
                 hint: 'Dosyayı Discord\'a sürükle',
                 run: () => makeGif(entry, 'download')
@@ -711,6 +705,17 @@
                     run: () => downloadRemote(mp4, `${baseName(entry)}.mp4`, 'Video indiriliyor')
                 });
             }
+
+            /*
+             * The file itself is fine, but in testing Discord's image
+             * proxy answered "Invalid resource" for a catbox link, so
+             * the link did not embed.
+             */
+            items.push({
+                label: 'GIF yap → catbox\'a yükle & linki kopyala',
+                hint: 'Discord\'da açılmayabilir; herkese açık, silinemez',
+                run: () => makeGif(entry, 'upload')
+            });
         }
 
         return items;

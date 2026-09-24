@@ -183,8 +183,8 @@ function assert(condition, message) {
 
     // 6. Video -> GIF -> upload -> link copied.
     await page.click('#overlay', { button: 'right', force: true });
-    await page.waitForFunction(() => document.querySelector('#fx-direct-menu')?.innerText.includes('yükle'));
-    await clickItem('GIF yap → yükle');
+    await page.waitForFunction(() => document.querySelector('#fx-direct-menu')?.innerText.includes('catbox'));
+    await clickItem('GIF yap → catbox');
     await page.waitForFunction(() => window.clipboard.at(-1) === 'https://files.catbox.moe/abc123.gif', null, { timeout: 60000 });
     const uploaded = await page.evaluate(async () => ({
         name: window.uploaded.name,
