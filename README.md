@@ -11,8 +11,9 @@ Violentmonkey/Tampermonkey userscript'i. `x-direct-media.user.js` dosyası.
    yapıştır → kaydet.
 3. Arkadaşının eski script'i (v5) de açıksa **onu kapat**, ikisi aynı Share
    menüsüne müdahale eder.
-4. İlk kullanımda Violentmonkey `api.fxtwitter.com`, `video.twimg.com`,
-   `catbox.moe` gibi adreslere istek izni sorar, izin ver.
+4. Tampermonkey kullanıyorsan ilk kullanımda `api.fxtwitter.com`,
+   `video.twimg.com`, `catbox.moe` gibi adreslere istek izni sorabilir,
+   "Always allow" de.
 
 ## Kullanım
 
