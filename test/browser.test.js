@@ -135,6 +135,13 @@ function assert(condition, message) {
     assert(texts[0] === 'Video 2', 'video right-click resolves to media #2 by thumbnail id');
     assert(!texts.some(t => t.startsWith('Resim')), 'only the clicked media is listed');
 
+    assert(texts[1] === 'Sadece medya linki (d.fixupx)', 'direct media link is the first option');
+    await clickItem('Sadece medya linki');
+    assert(await page.evaluate(() => window.clipboard.at(-1)) ===
+        'https://d.fixupx.com/alice/status/111/video/2', 'd.fixupx link picks the clicked item of a multi-media tweet');
+
+    await page.click('#overlay', { button: 'right', force: true });
+    await page.waitForFunction(() => document.querySelector('#fx-direct-menu')?.innerText.includes('MP4'));
     await clickItem('MP4 linkini kopyala');
     assert(await page.evaluate(() => window.clipboard.at(-1)) ===
         'https://video.twimg.com/ext_tw_video/999000111/pu/vid/avc1/1280x720/best.mp4',
@@ -155,6 +162,12 @@ function assert(condition, message) {
     texts = await menuTexts();
     console.log('   quoted gif menu:', texts);
     assert(texts[0] === 'GIF 1 (alıntı)', 'quoted GIF is matched through status.quote');
+    await clickItem('Galeri linki');
+    assert(await page.evaluate(() => window.clipboard.at(-1)) ===
+        'https://g.fixupx.com/bob/status/222', 'g.fixupx link uses the quoted tweet, no suffix for a single item');
+
+    await page.click('#quoted', { button: 'right' });
+    await page.waitForFunction(() => document.querySelector('#fx-direct-menu')?.innerText.includes('GIF 1'));
     await clickItem('FxTwitter GIF linkini kopyala');
     assert(await page.evaluate(() => window.clipboard.at(-1)) ===
         'https://gif.fxtwitter.com/tweet_video/GIFKEY42.webp', 'FxTwitter GIF link copied');

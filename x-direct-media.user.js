@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         X → Discord: Direct Media & GIF Maker
 // @namespace    https://github.com/tbatesend/ilove_sending_gifs
-// @version      6.0.1
+// @version      6.1.0
 // @description  Right-click media on X (or use the Share menu) to copy direct links, download MP4s, or turn videos/GIFs into real .gif files that Discord animates.
 // @match        https://x.com/*
 // @match        https://twitter.com/*
@@ -237,6 +237,24 @@
 
     function fixupUrl(tweet) {
         return `https://${CONFIG.fixupHost}/${tweet.user}/status/${tweet.id}`;
+    }
+
+    /*
+     * FxTwitter link variants (from its README):
+     *   d.fixupx.com/... → the media itself, no tweet embed
+     *   g.fixupx.com/... → media + author only, no tweet text
+     * /photo/N or /video/N picks one item of a multi-media tweet.
+     */
+    function fixupMediaUrl(entry, subdomain) {
+        const user = entry.status.author?.screen_name || 'i';
+        let url = `https://${subdomain}.${CONFIG.fixupHost}/${user}/status/${entry.status.id}`;
+
+        if (entry.total > 1) {
+            const kind = entry.media.type === 'photo' ? 'photo' : 'video';
+            url += `/${kind}/${entry.number}`;
+        }
+
+        return url;
     }
 
     function tweetFromArticle(article) {
@@ -552,10 +570,11 @@
         const sources = [status, status.quote].filter(Boolean);
 
         const entries = sources.flatMap(source =>
-            mediaList(source).map((media, i) => ({
+            mediaList(source).map((media, i, list) => ({
                 status: source,
                 media,
-                number: i + 1
+                number: i + 1,
+                total: list.length
             }))
         );
 
@@ -660,7 +679,19 @@
 
     function actionsFor(entry, tweet) {
         const { media } = entry;
-        const items = [];
+
+        const items = [
+            {
+                label: 'Sadece medya linki (d.fixupx)',
+                hint: 'Tweet yazısı olmadan, sadece medya',
+                run: () => copyAndTell(fixupMediaUrl(entry, 'd'), 'Medya linki kopyalandı ✓')
+            },
+            {
+                label: 'Galeri linki (g.fixupx)',
+                hint: 'Medya + kullanıcı adı, tweet yazısı yok',
+                run: () => copyAndTell(fixupMediaUrl(entry, 'g'), 'Galeri linki kopyalandı ✓')
+            }
+        ];
 
         if (media.type === 'photo') {
             items.push({

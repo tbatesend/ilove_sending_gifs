@@ -22,6 +22,8 @@ bu menü açılır (normal menü lazımsa **Shift + sağ tık**):
 
 | Medya | Seçenek | Discord'da ne olur |
 |---|---|---|
+| Hepsi | **Sadece medya linki (d.fixupx)** | Tweet yazısı olmadan sadece medya. Discord'da henüz denenmedi. |
+| Hepsi | **Galeri linki (g.fixupx)** | Medya + kullanıcı adı, tweet yazısı yok. Discord'da henüz denenmedi. |
 | GIF / video | **GIF yap → indir (.gif)** | Dosyayı Discord'a sürükle, GIF olarak oynar. **Denendi, çalışıyor.** |
 | GIF | **FxTwitter GIF linkini kopyala** | Anında. Animasyonlu WebP linki. Discord'da denenmedi. |
 | GIF / video | **MP4 linkini kopyala** | Oynat tuşlu video olarak gösterir. |
