@@ -1,8 +1,8 @@
 // ==UserScript==
 // @name         X → Discord: Direct Media & GIF Maker
 // @namespace    https://github.com/tbatesend/ilove_sending_gifs
-// @version      6.1.0
-// @description  Right-click media on X (or use the Share menu) to copy direct links, download MP4s, or turn videos/GIFs into real .gif files that Discord animates.
+// @version      7.0.0
+// @description  Right-click media on X to copy a GIF link, an MP4 link, or turn a short video into a GIF link that Discord plays.
 // @match        https://x.com/*
 // @match        https://twitter.com/*
 // @run-at       document-idle
@@ -10,11 +10,12 @@
 //
 // @grant        GM_setClipboard
 // @grant        GM_xmlhttpRequest
+// @grant        GM_getValue
+// @grant        GM_setValue
+// @grant        GM_registerMenuCommand
 // @connect      api.fxtwitter.com
 // @connect      video.twimg.com
-// @connect      pbs.twimg.com
-// @connect      gif.fxtwitter.com
-// @connect      catbox.moe
+// @connect      discord.com
 // ==/UserScript==
 
 (function () {
@@ -47,16 +48,23 @@
             // Longer clips are trimmed to this many seconds.
             maxSeconds: 15,
             /*
-             * Discord's upload limit for accounts without Nitro
-             * is 10 MB. If a GIF comes out bigger, it is re-made
-             * smaller (lower fps / size) automatically.
+             * GIFs bigger than this are re-made smaller (lower fps,
+             * then size). Discord's webhook limit is higher (20 MiB),
+             * this just keeps uploads and loading quick.
              */
             maxBytes: 10 * 1024 * 1024 - 64 * 1024
         },
 
-        // Anonymous, public, permanent file host used by "upload".
-        uploadEndpoint: 'https://catbox.moe/user/api.php'
+        /*
+         * FxTwitter turns X's GIFs (which are really MP4s) into
+         * real .gif files on this host (FxEmbed source:
+         * packages/atmosphere/src/helpers/media.ts).
+         */
+        gifTranscodeBase: 'https://gif.fxtwitter.com'
     };
+
+    const WEBHOOK_KEY = 'discordWebhookUrl';
+    const WEBHOOK_PATTERN = /^https:\/\/(?:canary\.|ptb\.)?discord(?:app)?\.com\/api\/webhooks\/\d+\/[\w-]+$/;
 
     // X's "Copy link" label in a few UI languages.
     const COPY_LINK_LABELS = [
@@ -123,21 +131,6 @@
         GM_setClipboard(text, 'text');
     }
 
-    function saveBlob(blob, filename) {
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-
-        a.href = url;
-        a.download = filename;
-        a.style.display = 'none';
-
-        document.body.appendChild(a);
-        a.click();
-        a.remove();
-
-        setTimeout(() => URL.revokeObjectURL(url), 60000);
-    }
-
     // ============================================================
     // HTTP
     // ============================================================
@@ -186,26 +179,86 @@
         return response.response;
     }
 
-    async function uploadFile(blob, filename) {
-        const form = new FormData();
+    /*
+     * Discord's media proxy refused catbox.moe links ("Invalid
+     * resource"), so GIFs go to Discord's own CDN instead: they
+     * are posted through a webhook in the user's own server and
+     * the attachment link is copied. Discord refreshes its signed
+     * CDN links wherever they appear inside Discord.
+     */
+    function getWebhook() {
+        return GM_getValue(WEBHOOK_KEY, '');
+    }
 
-        form.append('reqtype', 'fileupload');
-        form.append('fileToUpload', blob, filename);
+    function askForWebhook() {
+        const answer = prompt(
+            'GIF\'leri Discord\'a yüklemek için bir webhook linki lazım (bir kere).\n\n' +
+            '1. Kendi (boş, özel) Discord sunucunda bir kanal aç\n' +
+            '2. Kanal ayarları → Entegrasyonlar → Webhook\'lar → Yeni Webhook\n' +
+            '3. "Webhook URL\'sini Kopyala" → buraya yapıştır\n\n' +
+            'Bu link gizli kalmalı, kimseyle paylaşma.',
+            getWebhook()
+        );
 
-        const response = await gmRequest({
-            method: 'POST',
-            url: CONFIG.uploadEndpoint,
-            data: form,
-            timeout: 180000
-        });
-
-        const text = (response.responseText || '').trim();
-
-        if (!/^https:\/\/\S+$/.test(text)) {
-            throw new Error(`Upload failed: ${text.slice(0, 200)}`);
+        if (answer === null) {
+            return '';
         }
 
-        return text;
+        const url = answer.trim();
+
+        if (!WEBHOOK_PATTERN.test(url)) {
+            toast('Bu bir Discord webhook linki değil', 5000);
+            return '';
+        }
+
+        GM_setValue(WEBHOOK_KEY, url);
+        toast('Webhook kaydedildi ✓');
+        return url;
+    }
+
+    GM_registerMenuCommand('Discord webhook ayarla', askForWebhook);
+
+    async function uploadToDiscord(blob, filename) {
+        const webhook = getWebhook() || askForWebhook();
+
+        if (!webhook) {
+            throw new Error('Webhook ayarlanmadı');
+        }
+
+        const form = new FormData();
+
+        form.append('payload_json', JSON.stringify({
+            attachments: [{ id: 0, filename }]
+        }));
+        form.append('files[0]', blob, filename);
+
+        let response;
+
+        try {
+            response = await gmRequest({
+                method: 'POST',
+                url: `${webhook}?wait=true`,
+                data: form,
+                timeout: 180000
+            });
+        } catch (error) {
+            // Discord says never to retry a webhook that returned 404.
+            if (/HTTP 40[14]/.test(error.message)) {
+                GM_setValue(WEBHOOK_KEY, '');
+                throw new Error('Webhook silinmiş ya da geçersiz, yenisini ayarla');
+            }
+
+            throw error;
+        }
+
+        const message = JSON.parse(response.responseText);
+        const url = message.attachments?.[0]?.url;
+
+        if (!url) {
+            throw new Error('Discord returned no attachment');
+        }
+
+        return url;
     }
 
     // ============================================================
@@ -237,24 +290,6 @@
 
     function fixupUrl(tweet) {
         return `https://${CONFIG.fixupHost}/${tweet.user}/status/${tweet.id}`;
-    }
-
-    /*
-     * FxTwitter link variants (from its README):
-     *   d.fixupx.com/... → the media itself, no tweet embed
-     *   g.fixupx.com/... → media + author only, no tweet text
-     * /photo/N or /video/N picks one item of a multi-media tweet.
-     */
-    function fixupMediaUrl(entry, subdomain) {
-        const user = entry.status.author?.screen_name || 'i';
-        let url = `https://${subdomain}.${CONFIG.fixupHost}/${user}/status/${entry.status.id}`;
-
-        if (entry.total > 1) {
-            const kind = entry.media.type === 'photo' ? 'photo' : 'video';
-            url += `/${kind}/${entry.number}`;
-        }
-
-        return url;
     }
 
     function tweetFromArticle(article) {
@@ -405,24 +440,30 @@
         ]);
     }
 
-    function photoUrl(media) {
-        try {
-            const url = new URL(media.url);
+    /*
+     * X's GIFs are MP4s. FxTwitter builds a real .gif of the same
+     * clip by swapping the video host and extension; Discordbot
+     * otherwise gets .webp, so ask for .gif explicitly.
+     */
+    function gifUrl(media) {
+        const candidates = [media.transcode_url, media.url];
 
-            // Ask the image CDN for original quality.
-            if (url.hostname === 'pbs.twimg.com') {
-                url.searchParams.set('name', 'orig');
+        for (const candidate of candidates) {
+            try {
+                const url = new URL(candidate);
+
+                if (!/\/tweet_video\/[^/]+\.(mp4|webp|gif)$/i.test(url.pathname)) {
+                    continue;
+                }
+
+                return CONFIG.gifTranscodeBase +
+                    url.pathname.replace(/\.(mp4|webp|gif)$/i, '.gif');
+            } catch {
+                // try the next one
             }
-
-            return url.toString();
-        } catch {
-            return media.url;
         }
-    }
 
-    function photoExtension(media) {
-        const match = (media.url || '').match(/\.(jpe?g|png|webp|gif)(?:\?|$)/i);
-        return match ? match[1].toLowerCase() : 'jpg';
+        return null;
     }
 
     function mp4Variants(media) {
@@ -626,15 +667,14 @@
         console.log('[Direct Media]', text);
     }
 
-    async function downloadRemote(url, filename, label) {
-        const blob = await fetchBlob(url, label);
-        saveBlob(blob, filename);
-        toast(`İndirildi: ${filename}`);
-    }
-
-    async function makeGif(entry, mode) {
+    async function makeGif(entry) {
         if (gifBusy) {
             toast('Zaten bir GIF hazırlanıyor, bekle…');
+            return;
+        }
+
+        // Ask before the slow part, not after it.
+        if (!getWebhook() && !askForWebhook()) {
             return;
         }
 
@@ -658,66 +698,43 @@
                 notes.push(`ilk ${CONFIG.gif.maxSeconds} sn`);
             }
 
-            if (result.tooBig) {
-                notes.push('10 MB üstü — Nitro gerekebilir');
-            }
+            toast(`Discord'a yükleniyor (${formatSize(result.blob.size)})…`, 0);
 
-            if (mode === 'upload') {
-                toast(`Yükleniyor (${formatSize(result.blob.size)})…`, 0);
+            const link = await uploadToDiscord(result.blob, filename);
 
-                const link = await uploadFile(result.blob, filename);
-
-                copyAndTell(link, `GIF linki kopyalandı ✓ (${notes.join(', ')})`);
-            } else {
-                saveBlob(result.blob, filename);
-                toast(`GIF indirildi ✓ (${notes.join(', ')})`, 5000);
-            }
+            copyAndTell(link, `GIF linki kopyalandı ✓ Discord'a yapıştır (${notes.join(', ')})`);
         } finally {
             gifBusy = false;
         }
     }
 
-    function actionsFor(entry, tweet) {
+    function actionsFor(entry) {
         const { media } = entry;
+        const items = [];
 
-        const items = [
-            {
-                label: 'Sadece medya linki (d.fixupx)',
-                hint: 'Tweet yazısı olmadan, sadece medya',
-                run: () => copyAndTell(fixupMediaUrl(entry, 'd'), 'Medya linki kopyalandı ✓')
-            },
-            {
-                label: 'Galeri linki (g.fixupx)',
-                hint: 'Medya + kullanıcı adı, tweet yazısı yok',
-                run: () => copyAndTell(fixupMediaUrl(entry, 'g'), 'Galeri linki kopyalandı ✓')
+        if (media.type === 'gif') {
+            const gif = gifUrl(media);
+
+            if (gif) {
+                items.push({
+                    label: 'GIF linkini kopyala',
+                    hint: 'Sadece GIF, tweet yazısı yok',
+                    run: () => copyAndTell(gif, 'GIF linki kopyalandı ✓')
+                });
             }
-        ];
-
-        if (media.type === 'photo') {
-            items.push({
-                label: 'Resim linkini kopyala',
-                run: () => copyAndTell(photoUrl(media), 'Resim linki kopyalandı ✓')
-            });
-
-            items.push({
-                label: 'Resmi indir',
-                run: () => downloadRemote(photoUrl(media), `${baseName(entry)}.${photoExtension(media)}`, 'Resim indiriliyor')
-            });
         }
 
-        if (media.type === 'gif' || media.type === 'video') {
+        /*
+         * Also offered for GIFs, as a fallback for when FxTwitter's
+         * GIF host has trouble (FxEmbed issues #2456, #2465).
+         */
+        if (media.type === 'video' || media.type === 'gif') {
             items.push({
-                label: 'GIF yap → indir (.gif)',
-                hint: 'Dosyayı Discord\'a sürükle',
-                run: () => makeGif(entry, 'download')
-            });
-        }
-
-        if (media.type === 'gif' && media.transcode_url) {
-            items.push({
-                label: 'FxTwitter GIF linkini kopyala',
-                hint: 'Anında; animasyonlu WebP',
-                run: () => copyAndTell(media.transcode_url, 'FxTwitter GIF linki kopyalandı ✓')
+                label: 'GIF\'e çevir → linki kopyala',
+                hint: media.type === 'gif'
+                    ? 'Üstteki çalışmazsa bunu kullan; ilk seferde webhook ister'
+                    : 'Kısa videolar için; ilk seferde webhook ister',
+                run: () => makeGif(entry)
             });
         }
 
@@ -727,26 +744,10 @@
             if (mp4) {
                 items.push({
                     label: 'MP4 linkini kopyala',
-                    hint: 'Discord video oynatıcı olarak gösterir',
+                    hint: 'Video olarak gider',
                     run: () => copyAndTell(mp4, 'MP4 linki kopyalandı ✓')
                 });
-
-                items.push({
-                    label: 'MP4 indir',
-                    run: () => downloadRemote(mp4, `${baseName(entry)}.mp4`, 'Video indiriliyor')
-                });
             }
-
-            /*
-             * The file itself is fine, but in testing Discord's image
-             * proxy answered "Invalid resource" for a catbox link, so
-             * the link did not embed.
-             */
-            items.push({
-                label: 'GIF yap → catbox\'a yükle & linki kopyala',
-                hint: 'Discord\'da açılmayabilir; herkese açık, silinemez',
-                run: () => makeGif(entry, 'upload')
-            });
         }
 
         return items;
@@ -897,9 +898,13 @@
         const typeNames = { photo: 'Resim', video: 'Video', gif: 'GIF' };
 
         for (const entry of entries) {
+            const actions = actionsFor(entry);
+
+            if (!actions.length) continue;
+
             const quoted = entry.status.id !== tweet.id ? ' (alıntı)' : '';
             addHeader(menu, `${typeNames[entry.media.type]} ${entry.number}${quoted}`);
-            actionsFor(entry, tweet).forEach(item => addItem(menu, item));
+            actions.forEach(item => addItem(menu, item));
         }
 
         addHeader(menu, 'Gönderi');
@@ -939,7 +944,8 @@
 
         const clicked = findClickedMedia(event.target);
 
-        if (!clicked) {
+        // Photos have nothing to offer here: keep the normal menu.
+        if (!clicked || clicked.kind === 'photo') {
             return;
         }
 

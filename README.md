@@ -12,68 +12,61 @@ Violentmonkey/Tampermonkey userscript'i. `x-direct-media.user.js` dosyası.
 3. Arkadaşının eski script'i (v5) de açıksa **onu kapat**, ikisi aynı Share
    menüsüne müdahale eder.
 4. Tampermonkey kullanıyorsan ilk kullanımda `api.fxtwitter.com`,
-   `video.twimg.com`, `catbox.moe` gibi adreslere istek izni sorabilir,
+   `video.twimg.com`, `discord.com` adreslerine istek izni sorabilir,
    "Always allow" de.
 
 ## Kullanım
 
-X'te bir resme, videoya ya da GIF'e **sağ tıkla**. Tarayıcının menüsü yerine
-bu menü açılır (normal menü lazımsa **Shift + sağ tık**):
+X'te bir GIF'e ya da videoya **sağ tıkla** (normal menü için Shift + sağ tık):
 
-| Medya | Seçenek | Discord'da ne olur |
+| Medya | Seçenek | Ne olur |
 |---|---|---|
-| Hepsi | **Sadece medya linki (d.fixupx)** | Tweet yazısı olmadan sadece medya. Discord'da henüz denenmedi. |
-| Hepsi | **Galeri linki (g.fixupx)** | Medya + kullanıcı adı, tweet yazısı yok. Discord'da henüz denenmedi. |
-| GIF / video | **GIF yap → indir (.gif)** | Dosyayı Discord'a sürükle, GIF olarak oynar. **Denendi, çalışıyor.** |
-| GIF | **FxTwitter GIF linkini kopyala** | Anında. Animasyonlu WebP linki. Discord'da denenmedi. |
-| GIF / video | **MP4 linkini kopyala** | Oynat tuşlu video olarak gösterir. |
-| GIF / video | **MP4 indir** | Dosyayı sürükle, video olarak gider. |
-| GIF / video | **GIF yap → catbox'a yükle & linki kopyala** | **Denendi, Discord'da açılmadı** (aşağıya bak). |
-| Resim | **Resim linkini kopyala / indir** | Orijinal boyut (`?name=orig`). |
-| Hepsi | **FixupX linkini kopyala** | Tweet'in tamamı embed olur. |
+| GIF | **GIF linkini kopyala** | `gif.fxtwitter.com/tweet_video/….gif` linki. Discord'a yapıştır, sadece GIF görünür. |
+| GIF / video | **GIF'e çevir → linki kopyala** | Tarayıcıda GIF yapar, Discord'a yükler, linki kopyalar. |
+| GIF / video | **MP4 linkini kopyala** | Video olarak gider. **Denendi, çalışıyor.** |
+| Hepsi | **FixupX linkini kopyala** | Tweet'in tamamı embed olur. **Denendi, çalışıyor.** |
 
-Aynı menü tweet'in **Paylaş** menüsünde de var: "Direkt medya / GIF yap…".
-X'in kendi **Bağlantıyı kopyala** seçeneği de artık `fixupx.com` linki kopyalar.
+Paylaş menüsünde de "Direkt medya / GIF yap…" var. X'in kendi
+**Bağlantıyı kopyala** seçeneği de `fixupx.com` linki kopyalar.
+
+### "GIF'e çevir" için bir kerelik ayar: webhook
+
+Başka sitelere yüklenen GIF'leri Discord açmadı (catbox'ta
+`Invalid resource` hatası). Discord'un kesin açtığı yer kendi sunucusu. Bu
+yüzden GIF, senin sunucundaki bir webhook ile Discord'a yüklenir ve linki
+kopyalanır:
+
+1. Kendine boş, özel bir Discord sunucusu aç (ya da var olanda gizli bir kanal).
+2. Kanal ayarları → **Entegrasyonlar** → **Webhook'lar** → **Yeni Webhook** →
+   **Webhook URL'sini Kopyala**.
+3. İlk kez "GIF'e çevir"e bastığında script bu linki sorar, yapıştır. Bir
+   daha sormaz. Değiştirmek için: Violentmonkey simgesi → "Discord webhook ayarla".
+
+Notlar:
+- O kanaldaki mesajları **silme**. Discord linkleri imzalı ve süreli.
+  Discord içinde paylaşılan linkleri kendisi yeniler, ama mesaj silinirse
+  link ölür.
+- Webhook linki gizli kalmalı. Linki bilen herkes o kanala mesaj atabilir.
 
 ### GIF yapma nasıl çalışır
 
-Hiçbir dönüştürme sitesine gitmez, her şey tarayıcında olur:
-
-1. Tweet'in MP4'ü indirilir (GIF boyutuna yetecek en küçük kalite).
-2. Video kare kare okunur (varsayılan 15 fps, en uzun kenar 480 px, ilk 15 sn).
-3. 255 renklik ortak bir palet çıkarılır. Her karede yalnızca değişen
-   pikseller kaydedilir, bu da dosyayı çok küçültür.
-4. Sonuç **10 MB**'tan büyükse (Nitro'suz Discord'un yükleme sınırı) önce fps
-   düşürülür (en az 10), sonra çözünürlük küçültülerek tekrar denenir.
-
-Ayarlar script'in en üstündeki `CONFIG` bölümünde (`maxSide`, `fps`,
-`maxSeconds`, `maxBytes`, `rightClickMenu`, `rewriteNativeCopyLink`).
+Dönüştürme için başka bir siteye gitmez, her şey tarayıcında olur: MP4 indirilir,
+kare kare okunur (15 fps, en uzun kenar 480 px, ilk 15 sn), 255 renklik GIF'e
+çevrilir. 10 MB'ı geçerse önce fps, sonra boyut düşürülüp tekrar denenir.
+Ayarlar script'in başındaki `CONFIG` bölümünde.
 
 ## Bilmen gerekenler
 
-- **catbox linkleri Discord'da açılmadı.** Denemede 1.6 MB'lık GIF tarayıcıda
-  açılıp oynadı, aynı dosya sürükleyince Discord'da da oynadı. Ama linki
-  Discord'a yapıştırınca Discord'un resim proxy'si
-  `{"message":"Invalid resource ..."}` döndürdü. Yani dosya sağlam, Discord
-  catbox'tan dosyayı çekemiyor. Nedenini bilmiyorum. Seçenek menüde en altta
-  duruyor.
-- "catbox'a yükle" dosyayı [catbox.moe](https://catbox.moe)'ya yükler.
-  **Dosya herkese açık ve kalıcı olur, silemezsin.**
-- İpucu: Chrome ve Firefox'ta indirme panelindeki dosyayı doğrudan Discord
-  penceresine sürükleyebilirsin, klasörü açman gerekmez.
-- Discord'un nitro'suz yükleme sınırı 10 MB. Nitro'n varsa `maxBytes`
-  değerini artırabilirsin.
-- Uzun videolardan GIF yapmak mantıklı değil. 15 saniyeden sonrası kesilir,
-  ve 10 MB'a sığdırmak için görüntü çok küçülür.
-- GIF formatında en fazla 256 renk olur. Renk geçişli videolarda bantlanma
-  görmen normal.
-- **FxTwitter GIF linki** (`gif.fxtwitter.com/...webp`) animasyonlu WebP'dir.
-  Discord 2025'ten beri animasyonlu WebP'yi destekliyor
-  ([Discord blog](https://discord.com/blog/modern-image-formats-at-discord-supporting-webp-and-avif)).
-  Ama bu linkin Discord'da gerçekten oynadığını **test edemedim**. Oynamazsa
-  "GIF yap" seçeneklerini kullan.
-- X'in sayfa yapısı (`data-testid`'ler) değişirse sağ tık menüsü açılmayabilir.
-  O zaman Paylaş menüsündeki seçeneği dene, o daha az şeye bağlı.
+- **GIF linki** FxTwitter'ın kaynak koduna göre yazıldı
+  (`packages/atmosphere/src/helpers/media.ts`: `.mp4` yerine `.gif`, host
+  `gif.fxtwitter.com`). Discord'da canlı denenmedi. FxEmbed'de şu an açık
+  "GIF'ler Discord'da görünmüyor" hata kayıtları var (#2456, #2465).
+  Çalışmazsa aynı menüdeki "GIF'e çevir"i kullan.
+- Resimlerde sağ tık menüsü açılmaz, tarayıcının normal menüsü çıkar.
+- GIF formatı en fazla 256 renk gösterir. Renk geçişli videolarda bantlanma
+  olur.
+- X'in sayfa yapısı değişirse sağ tık menüsü açılmayabilir. O zaman Paylaş
+  menüsündeki seçeneği dene.
 
 ## Test
 
@@ -83,6 +76,6 @@ node test/browser.test.js          # Chromium'da sahte X sayfası (Playwright ge
 python3 test/check_gif.py          # Çıkan GIF'leri Pillow ile çözüp karşılaştırır
 ```
 
-Testler gerçek X'e ya da FxTwitter'a bağlanmaz. X sayfası ve API yanıtı
-sahte, video da tarayıcıda üretilmiş bir WebM. Gerçek X'te elle denenmesi
+Testler gerçek X'e, FxTwitter'a ya da Discord'a bağlanmaz. X sayfası, API ve
+webhook yanıtları sahte, video da tarayıcıda üretilmiş bir WebM. Gerçek X'te elle denenmesi
 gerekiyor.
