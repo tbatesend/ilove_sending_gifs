@@ -21,8 +21,8 @@ X'te bir GIF'e ya da videoya **sağ tıkla** (normal menü için Shift + sağ t�
 
 | Medya | Seçenek | Ne olur |
 |---|---|---|
-| GIF | **GIF linkini kopyala** | `gif.fxtwitter.com/tweet_video/….gif` linki. Discord'a yapıştır, sadece GIF görünür. |
-| GIF / video | **GIF'e çevir → linki kopyala** | Tarayıcıda GIF yapar, Discord'a yükler, linki kopyalar. |
+| GIF | **GIF linkini kopyala** | `gif.fxtwitter.com/tweet_video/….gif` linki. Discord'a yapıştır, sadece GIF görünür. **Denendi, çalışıyor.** |
+| GIF / video | **GIF'e çevir → linki kopyala** | Tarayıcıda GIF yapar, Discord'a yükler, linki kopyalar. **Denendi, çalışıyor.** |
 | GIF / video | **MP4 linkini kopyala** | Video olarak gider. **Denendi, çalışıyor.** |
 | Hepsi | **FixupX linkini kopyala** | Tweet'in tamamı embed olur. **Denendi, çalışıyor.** |
 
@@ -59,9 +59,8 @@ Ayarlar script'in başındaki `CONFIG` bölümünde.
 
 - **GIF linki** FxTwitter'ın kaynak koduna göre yazıldı
   (`packages/atmosphere/src/helpers/media.ts`: `.mp4` yerine `.gif`, host
-  `gif.fxtwitter.com`). Discord'da canlı denenmedi. FxEmbed'de şu an açık
-  "GIF'ler Discord'da görünmüyor" hata kayıtları var (#2456, #2465).
-  Çalışmazsa aynı menüdeki "GIF'e çevir"i kullan.
+  `gif.fxtwitter.com`). Discord'da denendi, çalışıyor. FxTwitter tarafında
+  bir sorun çıkarsa aynı menüdeki "GIF'e çevir"i kullan.
 - Resimlerde sağ tık menüsü açılmaz, tarayıcının normal menüsü çıkar.
 - GIF formatı en fazla 256 renk gösterir. Renk geçişli videolarda bantlanma
   olur.
