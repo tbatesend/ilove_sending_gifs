@@ -1,7 +1,9 @@
 // ==UserScript==
 // @name         X → Discord: Direct Media & GIF Maker
 // @namespace    https://github.com/tbatesend/ilove_sending_gifs
-// @version      7.0.0
+// @updateURL    https://raw.githubusercontent.com/tbatesend/ilove_sending_gifs/main/x-direct-media.user.js
+// @downloadURL  https://raw.githubusercontent.com/tbatesend/ilove_sending_gifs/main/x-direct-media.user.js
+// @version      7.0.1
 // @description  Right-click media on X to copy a GIF link, an MP4 link, or turn a short video into a GIF link that Discord plays.
 // @match        https://x.com/*
 // @match        https://twitter.com/*

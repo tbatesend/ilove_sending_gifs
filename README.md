@@ -6,9 +6,9 @@ Violentmonkey/Tampermonkey userscript'i. `x-direct-media.user.js` dosyası.
 ## Kurulum
 
 1. Tarayıcına [Violentmonkey](https://violentmonkey.github.io/) kur.
-2. `x-direct-media.user.js` dosyasının **Raw** halini aç, Violentmonkey kurmayı
-   önerir. Ya da Violentmonkey → **+** → yeni script → dosyanın içeriğini
-   yapıştır → kaydet.
+2. Bu linki aç, Violentmonkey kurmayı önerir, **Yükle**'ye bas:
+   https://raw.githubusercontent.com/tbatesend/ilove_sending_gifs/main/x-direct-media.user.js
+   Yeni sürümler Violentmonkey'e kendiliğinden gelir.
 3. Arkadaşının eski script'i (v5) de açıksa **onu kapat**, ikisi aynı Share
    menüsüne müdahale eder.
 4. Tampermonkey kullanıyorsan ilk kullanımda `api.fxtwitter.com`,
