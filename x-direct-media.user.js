@@ -1,12 +1,14 @@
 // ==UserScript==
-// @name         X → Discord: Direct Media & GIF Maker
+// @name         X/YouTube → Discord: Direct Media & GIF Maker
 // @namespace    https://github.com/tbatesend/ilove_sending_gifs
 // @updateURL    https://raw.githubusercontent.com/tbatesend/ilove_sending_gifs/main/x-direct-media.user.js
 // @downloadURL  https://raw.githubusercontent.com/tbatesend/ilove_sending_gifs/main/x-direct-media.user.js
-// @version      7.0.1
-// @description  Right-click media on X to copy a GIF link, an MP4 link, or turn a short video into a GIF link that Discord plays.
+// @version      8.0.0
+// @description  Right-click media on X or a YouTube video to copy a GIF link, an MP4 link, or turn a clip into a GIF link that Discord plays.
 // @match        https://x.com/*
 // @match        https://twitter.com/*
+// @match        https://www.youtube.com/*
+// @match        https://m.youtube.com/*
 // @run-at       document-idle
 // @noframes
 //
@@ -18,10 +20,15 @@
 // @connect      api.fxtwitter.com
 // @connect      video.twimg.com
 // @connect      discord.com
+// @connect      canary.discord.com
+// @connect      ptb.discord.com
+// @connect      discordapp.com
 // ==/UserScript==
 
 (function () {
     'use strict';
+
+    const IS_YOUTUBE = /(^|\.)youtube\.com$/.test(location.hostname);
 
     // ============================================================
     // Settings
@@ -62,7 +69,12 @@
          * real .gif files on this host (FxEmbed source:
          * packages/atmosphere/src/helpers/media.ts).
          */
-        gifTranscodeBase: 'https://gif.fxtwitter.com'
+        gifTranscodeBase: 'https://gif.fxtwitter.com',
+
+        youtube: {
+            // Clip lengths offered in the YouTube right-click menu.
+            clipOptions: [3, 5, 10]
+        }
     };
 
     const WEBHOOK_KEY = 'discordWebhookUrl';
@@ -839,7 +851,7 @@
         menu.style.top = `${Math.max(8, top)}px`;
     }
 
-    async function openMenu(x, y, tweet, clicked) {
+    function createMenu(x, y) {
         closeMenu();
 
         const menu = document.createElement('div');
@@ -861,8 +873,16 @@
             fontSize: '14px'
         });
 
-        addHeader(menu, 'Yükleniyor…');
         document.body.appendChild(menu);
+        placeMenu(menu, x, y);
+
+        return menu;
+    }
+
+    async function openMenu(x, y, tweet, clicked) {
+        const menu = createMenu(x, y);
+
+        addHeader(menu, 'Yükleniyor…');
         placeMenu(menu, x, y);
 
         const fixupItem = {
@@ -941,6 +961,19 @@
 
         if (document.getElementById(MENU_ID)?.contains(event.target)) {
             event.preventDefault();
+            return;
+        }
+
+        if (IS_YOUTUBE) {
+            const video = youtubeVideoAt(event.target);
+
+            if (video) {
+                event.preventDefault();
+                event.stopPropagation();
+                event.stopImmediatePropagation();
+                openYouTubeMenu(event.clientX, event.clientY, video);
+            }
+
             return;
         }
 
@@ -1100,10 +1133,12 @@
             .forEach(enhanceShareMenu);
     }
 
-    new MutationObserver(scanForShareMenu).observe(document.body, {
-        childList: true,
-        subtree: true
-    });
+    if (!IS_YOUTUBE) {
+        new MutationObserver(scanForShareMenu).observe(document.body, {
+            childList: true,
+            subtree: true
+        });
+    }
 
     // ============================================================
     // Video → GIF (runs entirely in the browser)
@@ -1301,6 +1336,306 @@
 
             URL.revokeObjectURL(blobUrl);
         }
+    }
+
+    // ============================================================
+    // YouTube: GIF from the video that is playing on the page
+    //
+    // YouTube has no plain MP4 link to download, so frames are read
+    // from the page's own <video> while it plays from where the
+    // user stopped it. Nothing is downloaded.
+    // ============================================================
+
+    function youtubeVideoAt(target) {
+        if (!(target instanceof Element)) {
+            return null;
+        }
+
+        const player = target.closest('#movie_player, .html5-video-player, #shorts-player, ytd-reel-video-renderer');
+        const video = target instanceof HTMLVideoElement
+            ? target
+            : player?.querySelector('video');
+
+        return video && video.videoWidth ? video : null;
+    }
+
+    function youtubeVideoId() {
+        const url = new URL(location.href);
+
+        return url.searchParams.get('v') ||
+            url.pathname.match(/^\/(?:shorts|live|embed)\/([\w-]{6,})/)?.[1] ||
+            null;
+    }
+
+    function youtubeIsAd(video) {
+        return !!video.closest('.ad-showing, .ad-interrupting');
+    }
+
+    function openYouTubeMenu(x, y, video) {
+        const menu = createMenu(x, y);
+        const id = youtubeVideoId();
+        const start = Math.floor(video.currentTime);
+        const clock = `${Math.floor(start / 60)}:${String(start % 60).padStart(2, '0')}`;
+
+        addHeader(menu, `GIF yap (${clock}'dan itibaren)`);
+
+        for (const seconds of CONFIG.youtube.clipOptions) {
+            addItem(menu, {
+                label: `Sonraki ${seconds} saniye → GIF linki`,
+                hint: seconds === CONFIG.youtube.clipOptions[0] ? 'Video oynar, bitince link kopyalanır' : undefined,
+                run: () => makeLiveGif(video, seconds, id ? `youtube_${id}_${start}s` : `youtube_${start}s`)
+            });
+        }
+
+        if (id) {
+            addHeader(menu, 'Link');
+
+            addItem(menu, {
+                label: `Linki ${clock}'dan kopyala`,
+                run: () => copyAndTell(
+                    `https://youtu.be/${id}${start ? `?t=${start}` : ''}`,
+                    'YouTube linki kopyalandı ✓'
+                )
+            });
+        }
+
+        addHeader(menu, 'YouTube\'un kendi menüsü: Shift + sağ tık');
+        placeMenu(menu, x, y);
+    }
+
+    async function makeLiveGif(video, seconds, name) {
+        if (gifBusy) {
+            toast('Zaten bir GIF hazırlanıyor, bekle…');
+            return;
+        }
+
+        if (youtubeIsAd(video)) {
+            throw new Error('Şu an reklam oynuyor, reklam bitince dene');
+        }
+
+        if (video.mediaKeys) {
+            throw new Error('Bu video korumalı (DRM), kareleri okunamıyor');
+        }
+
+        if (!getWebhook() && !askForWebhook()) {
+            return;
+        }
+
+        gifBusy = true;
+
+        try {
+            const capture = await captureLive(video, seconds, message => toast(message, 0));
+
+            toast('GIF: kodlanıyor…', 0);
+            await new Promise(resolve => setTimeout(resolve, 30));
+
+            const result = await capturedToGif(capture, message => toast(message, 0));
+            const notes = [formatSize(result.blob.size), `${result.width}×${result.height}`, `${result.fps} fps`];
+
+            toast(`Discord'a yükleniyor (${formatSize(result.blob.size)})…`, 0);
+
+            const link = await uploadToDiscord(result.blob, `${name}.gif`);
+
+            copyAndTell(link, `GIF linki kopyalandı ✓ Discord'a yapıştır (${notes.join(', ')})`);
+        } finally {
+            gifBusy = false;
+        }
+    }
+
+    function nextVideoFrame(video) {
+        return new Promise(resolve => {
+            if (typeof video.requestVideoFrameCallback === 'function') {
+                video.requestVideoFrameCallback(() => resolve());
+            } else {
+                setTimeout(resolve, 1000 / 60);
+            }
+        });
+    }
+
+    /*
+     * Plays the video from its current position and grabs frames
+     * at CONFIG.gif.fps until `seconds` of video have passed.
+     * Afterwards the video is put back where it was.
+     */
+    async function captureLive(video, seconds, onProgress) {
+        const scale = Math.min(1, CONFIG.gif.maxSide / Math.max(video.videoWidth, video.videoHeight));
+        const width = Math.max(2, Math.round(video.videoWidth * scale));
+        const height = Math.max(2, Math.round(video.videoHeight * scale));
+
+        const canvas = document.createElement('canvas');
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext('2d', { willReadFrequently: true });
+
+        const startTime = video.currentTime;
+        const wasPaused = video.paused;
+        const wasMuted = video.muted;
+        const step = 1 / CONFIG.gif.fps;
+        const frames = [];
+        const times = [];
+
+        let nextSample = startTime;
+        const deadline = Date.now() + (seconds * 4 + 15) * 1000;
+
+        try {
+            if (video.paused) {
+                try {
+                    await video.play();
+                } catch {
+                    // Autoplay rules: muted playback is always allowed.
+                    video.muted = true;
+                    await video.play();
+                }
+            }
+
+            while (Date.now() < deadline) {
+                await nextVideoFrame(video);
+
+                if (youtubeIsAd(video)) {
+                    throw new Error('Araya reklam girdi, reklamdan sonra tekrar dene');
+                }
+
+                const now = video.currentTime;
+
+                if (now < startTime - 0.5) {
+                    throw new Error('Video geri sarıldı, tekrar dene');
+                }
+
+                if (now + 1e-3 >= nextSample) {
+                    ctx.drawImage(video, 0, 0, width, height);
+
+                    try {
+                        frames.push(ctx.getImageData(0, 0, width, height));
+                    } catch {
+                        throw new Error('Tarayıcı bu videonun karelerini okumaya izin vermedi');
+                    }
+
+                    times.push(now);
+                    nextSample = Math.max(nextSample + step, now + step * 0.5);
+
+                    onProgress(`GIF: kaydediliyor ${Math.min(seconds, now - startTime).toFixed(1)}/${seconds} sn`);
+                }
+
+                if (now - startTime >= seconds || video.ended) {
+                    break;
+                }
+            }
+
+            if (frames.length < 2) {
+                throw new Error('Video oynamadı; oynatıp tekrar dene');
+            }
+        } finally {
+            if (wasPaused) {
+                video.pause();
+                video.currentTime = startTime;
+            }
+
+            video.muted = wasMuted;
+        }
+
+        const end = Math.min(times[times.length - 1] + step, startTime + seconds);
+
+        return { frames, times, end, width, height };
+    }
+
+    /*
+     * Turns captured ImageData frames into a GIF, shrinking fps and
+     * size the same way videoToGif does when it is too big.
+     */
+    async function capturedToGif(capture, onProgress) {
+        const { frames, times, end } = capture;
+
+        const source = document.createElement('canvas');
+        source.width = capture.width;
+        source.height = capture.height;
+        const sourceCtx = source.getContext('2d');
+
+        const target = document.createElement('canvas');
+        const targetCtx = target.getContext('2d', { willReadFrequently: true });
+
+        let maxSide = Math.max(capture.width, capture.height);
+        let fps = CONFIG.gif.fps;
+        let result = null;
+
+        for (let attempt = 0; attempt < 5; attempt++) {
+            const scale = maxSide / Math.max(capture.width, capture.height);
+            const width = Math.max(2, Math.round(capture.width * scale));
+            const height = Math.max(2, Math.round(capture.height * scale));
+
+            target.width = width;
+            target.height = height;
+
+            // Keep one frame per 1/fps of video time.
+            const picked = [];
+            let slot = -Infinity;
+
+            for (let i = 0; i < frames.length; i++) {
+                if (times[i] + 1e-3 >= slot) {
+                    picked.push(i);
+                    slot = Math.max(slot + 1 / fps, times[i] + 0.5 / fps);
+                }
+            }
+
+            const histogram = new Uint32Array(32768);
+            const packed = [];
+            const delays = [];
+            let shownCs = 0;
+            const baseTime = times[picked[0]];
+
+            for (let k = 0; k < picked.length; k++) {
+                const i = picked[k];
+
+                sourceCtx.putImageData(frames[i], 0, 0);
+                targetCtx.drawImage(source, 0, 0, width, height);
+
+                const rgba = targetCtx.getImageData(0, 0, width, height).data;
+                const frame = new Uint16Array(width * height);
+
+                for (let p = 0, j = 0; p < frame.length; p++, j += 4) {
+                    const color =
+                        ((rgba[j] >> 3) << 10) |
+                        ((rgba[j + 1] >> 3) << 5) |
+                        (rgba[j + 2] >> 3);
+
+                    frame[p] = color;
+                    histogram[color]++;
+                }
+
+                packed.push(frame);
+
+                // Real video timing, in centiseconds, without drift.
+                const until = k + 1 < picked.length ? times[picked[k + 1]] : end;
+                const untilCs = Math.round((until - baseTime) * 100);
+                delays.push(Math.max(2, untilCs - shownCs));
+                shownCs = Math.max(untilCs, shownCs + 2);
+            }
+
+            onProgress(`GIF: kodlanıyor (${width}×${height}, ${fps} fps)…`);
+            await new Promise(resolve => setTimeout(resolve, 30));
+
+            const blob = new Blob([encodeGif(packed, histogram, width, height, delays)], { type: 'image/gif' });
+
+            result = { blob, width, height, fps, tooBig: blob.size > CONFIG.gif.maxBytes };
+
+            if (!result.tooBig) {
+                return result;
+            }
+
+            const ratio = (CONFIG.gif.maxBytes / blob.size) * 0.9;
+            const newFps = Math.max(10, Math.min(fps, Math.floor(fps * ratio)));
+            const areaRatio = Math.min((ratio * fps) / newFps, 0.95);
+
+            fps = newFps;
+            maxSide = Math.floor(maxSide * Math.sqrt(areaRatio));
+
+            if (maxSide < 120) {
+                break;
+            }
+
+            onProgress(`GIF ${formatSize(blob.size)} çıktı, küçültülüyor…`);
+        }
+
+        return result;
     }
 
     // @@GIF_ENCODER_START
