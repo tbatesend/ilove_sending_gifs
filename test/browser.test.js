@@ -21,6 +21,13 @@ const PAGE = `<!doctype html><html><body>
   </div>
   <button data-testid="share">share</button>
 </article>
+<article>
+  <a href="/carol/status/333"><time>2h</time></a>
+  <div style="position:relative;width:320px;height:180px">
+    <video style="width:320px;height:180px" poster="https://pbs.twimg.com/tweet_video_thumb/COVERKEY9.jpg"></video>
+    <div id="cover" style="position:absolute;inset:0"></div>
+  </div>
+</article>
 </body></html>`;
 
 const STATUS = {
@@ -106,7 +113,13 @@ function assert(condition, message) {
         window.GM_xmlhttpRequest = opts => {
             window.requests.push(opts.url);
             setTimeout(() => {
-                if (opts.url.startsWith('https://api.fxtwitter.com/2/status/111')) {
+                if (opts.url.startsWith('https://api.fxtwitter.com/2/status/333')) {
+                    opts.onload({ status: 200, responseText: JSON.stringify({ code: 200, status: {
+                        id: '333', author: { screen_name: 'carol' },
+                        media: { all: [{ type: 'gif', url: 'https://video.twimg.com/tweet_video/COVERKEY9.mp4',
+                            thumbnail_url: 'https://pbs.twimg.com/tweet_video_thumb/COVERKEY9.jpg' }] }
+                    } }) });
+                } else if (opts.url.startsWith('https://api.fxtwitter.com/2/status/111')) {
                     opts.onload({ status: 200, responseText: JSON.stringify({ code: 200, status }) });
                 } else if (opts.url.includes('video.twimg.com')) {
                     opts.onload({ status: 200, response: window.testVideo });
@@ -166,6 +179,13 @@ function assert(condition, message) {
     await page.waitForFunction(() => document.querySelector('#fx-direct-menu')?.innerText.includes('FixupX'));
     await clickItem('FixupX linkini kopyala');
     assert(await lastClip() === 'https://fixupx.com/alice/status/111', 'FixupX link');
+
+    // 3b. A video covered by a layer without X's data-testid markers.
+    await page.click('#cover', { button: 'right' });
+    await page.waitForFunction(() => document.querySelector('#fx-direct-menu')?.innerText.includes('GIF 1'));
+    await clickItem('GIF linkini kopyala');
+    assert(await lastClip() === 'https://gif.fxtwitter.com/tweet_video/COVERKEY9.gif',
+        'video under an overlay (no data-testid) is still found');
 
     // 4. Photos keep the browser's own menu.
     await page.click('#photo', { button: 'right' });
