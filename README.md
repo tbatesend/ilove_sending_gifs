@@ -1,6 +1,6 @@
-# X → Discord: Direkt Medya & GIF Yapıcı
+# X/YouTube → Discord: Direkt Medya & GIF Yapıcı
 
-X'teki (Twitter) GIF'leri ve videoları Discord'a düzgün atabilmek için bir
+X'teki (Twitter) GIF'leri, videoları ve YouTube kliplerini Discord'a düzgün atabilmek için bir
 Violentmonkey/Tampermonkey userscript'i. `x-direct-media.user.js` dosyası.
 
 ## Kurulum
@@ -25,6 +25,19 @@ X'te bir GIF'e ya da videoya **sağ tıkla** (normal menü için Shift + sağ t�
 | GIF / video | **GIF'e çevir → linki kopyala** | Tarayıcıda GIF yapar, Discord'a yükler, linki kopyalar. **Denendi, çalışıyor.** |
 | GIF / video | **MP4 linkini kopyala** | Video olarak gider. **Denendi, çalışıyor.** |
 | Hepsi | **FixupX linkini kopyala** | Tweet'in tamamı embed olur. **Denendi, çalışıyor.** |
+
+### YouTube
+
+Videoyu GIF'in başlamasını istediğin yerde durdur, videoya **sağ tıkla**:
+
+| Seçenek | Ne olur |
+|---|---|
+| **Sonraki 3 / 5 / 10 saniye → GIF linki** | Video o kadar oynar, kareler kaydedilir, GIF Discord'a yüklenir, link kopyalanır. Video sonra başladığı yere döner. |
+| **Linki 1:23'dan kopyala** | `youtu.be/ID?t=83`. Discord YouTube oynatıcısı olarak gösterir. |
+
+YouTube'un kendi menüsü için **Shift + sağ tık**. Video indirilmez, sayfada
+oynayan videodan kareler okunur. Reklam oynarken ya da DRM'li videolarda
+(YouTube Filmler vb.) çalışmaz. Webhook ayarı X'teki ile aynıdır.
 
 Paylaş menüsünde de "Direkt medya / GIF yap…" var. X'in kendi
 **Bağlantıyı kopyala** seçeneği de `fixupx.com` linki kopyalar.
@@ -72,6 +85,7 @@ Ayarlar script'in başındaki `CONFIG` bölümünde.
 ```sh
 node test/encoder.test.js          # GIF kodlayıcı, sentetik karelerle
 node test/browser.test.js          # Chromium'da sahte X sayfası (Playwright gerekir)
+node test/youtube.test.js          # Sahte YouTube sayfasında klip → GIF
 python3 test/check_gif.py          # Çıkan GIF'leri Pillow ile çözüp karşılaştırır
 ```
 
