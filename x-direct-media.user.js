@@ -3,7 +3,7 @@
 // @namespace    https://github.com/tbatesend/ilove_sending_gifs
 // @updateURL    https://raw.githubusercontent.com/tbatesend/ilove_sending_gifs/main/x-direct-media.user.js
 // @downloadURL  https://raw.githubusercontent.com/tbatesend/ilove_sending_gifs/main/x-direct-media.user.js
-// @version      8.0.0
+// @version      8.0.1
 // @description  Right-click media on X or a YouTube video to copy a GIF link, an MP4 link, or turn a clip into a GIF link that Discord plays.
 // @match        https://x.com/*
 // @match        https://twitter.com/*
@@ -29,6 +29,8 @@
     'use strict';
 
     const IS_YOUTUBE = /(^|\.)youtube\.com$/.test(location.hostname);
+
+    console.log('[Direct Media] loaded', typeof GM_info !== 'undefined' ? GM_info.script.version : '');
 
     // ============================================================
     // Settings
@@ -954,6 +956,28 @@
     // Right-click on media
     // ============================================================
 
+    /*
+     * Sites put transparent layers (controls, click catchers) over
+     * their videos, so the element under the mouse is often not the
+     * <video>. Look at everything under the pointer instead.
+     */
+    function videoAtPoint(x, y) {
+        for (const el of document.elementsFromPoint(x, y)) {
+            if (el instanceof HTMLVideoElement) return el;
+        }
+
+        for (const video of document.querySelectorAll('video')) {
+            const r = video.getBoundingClientRect();
+
+            if (r.width > 0 && r.height > 0 &&
+                x >= r.left && x <= r.right && y >= r.top && y <= r.bottom) {
+                return video;
+            }
+        }
+
+        return null;
+    }
+
     window.addEventListener('contextmenu', event => {
         if (!CONFIG.rightClickMenu || event.shiftKey) {
             return;
@@ -965,7 +989,9 @@
         }
 
         if (IS_YOUTUBE) {
-            const video = youtubeVideoAt(event.target);
+            const under = videoAtPoint(event.clientX, event.clientY);
+            const video = youtubeVideoAt(event.target) ||
+                (under?.videoWidth ? under : null);
 
             if (video) {
                 event.preventDefault();
@@ -977,7 +1003,9 @@
             return;
         }
 
-        const clicked = findClickedMedia(event.target);
+        const clicked =
+            findClickedMedia(event.target) ||
+            findClickedMedia(videoAtPoint(event.clientX, event.clientY));
 
         // Photos have nothing to offer here: keep the normal menu.
         if (!clicked || clicked.kind === 'photo') {
